@@ -3,6 +3,11 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from PIL import Image
 import requests
 from io import BytesIO
+import cv2
+import numpy as np
+
+# Check if a GPU is available
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Download and save the model
 def download_and_save_model(model_name, save_path):
@@ -13,6 +18,9 @@ def download_and_save_model(model_name, save_path):
         trust_remote_code=True,
     )
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    
+    # Move model to GPU if available
+    model.to(device)
     
     # Save the model and tokenizer
     model.save_pretrained(save_path)
@@ -31,6 +39,47 @@ def load_image(image_path):
         image = Image.open(image_path)
     return image
 
+
+import cv2
+import numpy as np
+
+# Draw bounding boxes and points on the image
+def draw_boxes_and_points(image, objects, points):
+    # Convert PIL image to OpenCV format (BGR)
+    image_cv = np.array(image)
+    image_cv = cv2.cvtColor(image_cv, cv2.COLOR_RGB2BGR)
+
+    # Get image dimensions
+    height, width, _ = image_cv.shape
+
+    # Debugging: Print the object structure
+    print("\nObjects detected:")
+    print(objects)
+
+    # Draw bounding boxes for detected objects (example with "truck" detection)
+    for obj in objects:
+        print(f"Object details: {obj}")  # Debug print for each object
+        # Convert fractional coordinates to pixel coordinates
+        x_min = int(obj['x_min'] * width)
+        y_min = int(obj['y_min'] * height)
+        x_max = int(obj['x_max'] * width)
+        y_max = int(obj['y_max'] * height)
+
+        # Draw rectangle: (x_min, y_min, x_max, y_max)
+        cv2.rectangle(image_cv, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)  # Green box
+
+    # Draw points for detected items (example with "person" detection)
+    for point in points:
+        x, y = point['x'], point['y']
+        # Ensure x and y are integers
+        x, y = int(x), int(y)
+        # Draw circle for points
+        cv2.circle(image_cv, (x, y), 5, (0, 0, 255), -1)  # Red points
+
+    # Display the image
+    cv2.imshow("Image with Boxes and Points", image_cv)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 # Use the model for captioning and queries
 def use_model_for_queries(model, image, query):
@@ -54,15 +103,18 @@ def use_model_for_queries(model, image, query):
     query_result = model.query(image, query)["answer"]
     print(f"Answer: {query_result}")
     
-    # Object Detection: Detecting faces
-    print("\nObject detection: 'face'")
-    objects = model.detect(image, "face")["objects"]
-    print(f"Found {len(objects)} face(s)")
+    # Object Detection: Detecting trucks
+    print("\nObject detection: 'truck'")
+    objects = model.detect(image, "truck")["objects"]
+    print(f"Found {len(objects)} truck(s)")
     
     # Pointing: Detecting people
-    print("\nPointing: 'person'")
-    points = model.point(image, "person")["points"]
-    print(f"Found {len(points)} person(s)")
+    print("\nPointing: 'truck'")
+    points = model.point(image, "truck")["points"]
+    print(f"Found {len(points)} truck(s)")
+
+    # Draw the results on the image
+    draw_boxes_and_points(image, objects, points)
 
 
 # Main function to download model, load image, and run queries
