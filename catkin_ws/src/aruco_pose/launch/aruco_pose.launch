@@ -1,6 +1,9 @@
 <launch>
     <!-- Argument to control RViz launch -->
     <arg name="start_rviz" default="true" />
+    
+    <!-- Argument to control RealSense usage -->
+    <arg name="realsense" default="false" />
 
     <!-- Node to run the camera_publish.py script -->
     <node 
@@ -8,6 +11,7 @@
         pkg="aruco_pose" 
         type="camera_publish.py" 
         output="screen">
+        <param name="realsense" value="$(arg realsense)" />
     </node>
 
     <!-- Node to run the ArUco detection script -->

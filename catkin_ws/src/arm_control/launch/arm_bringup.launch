@@ -1,0 +1,15 @@
+<launch>
+    <!-- Define argument with a default value -->
+    <arg name="sim" default="false" />
+    <arg name="robot_ip" default="192.168.98.99" />
+
+    <!-- Include MoveIt! launch file -->
+    <include file="$(find tm5-700-moveit_config)/launch/tm5-700_moveit_planning_execution.launch">
+        <arg name="sim" value="$(arg sim)" />
+        
+        <!-- Pass robot_ip only if sim is false -->
+        <if condition="$(eval arg('sim') == 'false')">
+            <arg name="robot_ip" value="$(arg robot_ip)" />
+        </if>
+    </include>
+</launch>

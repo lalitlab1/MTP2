@@ -5,165 +5,176 @@ import rospy
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import tf2_ros
-from geometry_msgs.msg import TransformStamped
+import json
 import cv2
 import numpy as np
-import time
-import sys
+import rospkg
+import os
+from geometry_msgs.msg import TransformStamped
+from tf.transformations import quaternion_from_matrix
 
-# Compatibility imports
-try:
-    from tf.transformations import quaternion_from_matrix
-except ImportError:
-    from scipy.spatial.transform import Rotation as R
-
-def detect_aruco_markers_from_camera(image, dictionary_type=cv2.aruco.DICT_6X6_250):
-    """
-    Detect ArUco markers in the provided grayscale image using the specified dictionary.
-    """
-    dictionary = cv2.aruco.getPredefinedDictionary(dictionary_type)
-    parameters = cv2.aruco.DetectorParameters_create()
-    corners, ids, _ = cv2.aruco.detectMarkers(image, dictionary, parameters=parameters)
-
-    if ids is not None:
-        rospy.loginfo("Detected ArUco markers: IDs={}, Corners={}".format(ids.flatten().tolist(), corners))
-    else:
-        rospy.loginfo("No ArUco markers detected.")
-    return corners, ids
-
-
-def estimate_pose_single_markers(corners, marker_size, mtx, distortion):
-    """
-    Estimate the pose of detected ArUco markers.
-    """
-    marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
-                              [marker_size / 2, marker_size / 2, 0],
-                              [marker_size / 2, -marker_size / 2, 0],
-                              [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
-    
-    rvecs, tvecs = [], []
-    for corner in corners:
-        try:
-            # Ensure corner is a numpy array of the correct shape
-            corner = np.array(corner, dtype=np.float32).reshape(-1, 1, 2)
-            # SolvePnP to estimate the pose
-            _, rvec, tvec = cv2.solvePnP(marker_points, corner, mtx, distortion)
-            rvecs.append(rvec)
-            tvecs.append(tvec)
-        except cv2.error as e:
-            rospy.logerr("Error in solvePnP: {}".format(e))
-    return rvecs, tvecs
-
+def load_json(file_path, default={}):
+    """Loads a JSON file."""
+    try:
+        with open(file_path, "r") as file:
+            return json.load(file)
+    except Exception as e:
+        rospy.logerr("Failed to load {}: {}".format(file_path, e))
+        return default
 
 class ArucoSubscriber:
     def __init__(self):
-        rospy.init_node('aruco_detection_node', anonymous=True)
-        rospy.loginfo("Initializing ArucoSubscriber node...")
+        # Set file paths for the config and camera parameters
+        self.config_file = "/root/catkin_ws/src/aruco_pose/config/aruco_mapping.json"
+        self.camera_params_file = "/root/catkin_ws/src/aruco_pose/config/camera_params.json"
 
-        # Subscriber
-        self.image_sub = rospy.Subscriber(
-            "/camera/color/image_raw", Image, self.image_callback, queue_size=10)
-        rospy.loginfo("Subscribed to /camera/color/image_raw")
-
-        # Publisher
+        # ROS Setup
+        self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback, queue_size=10)
         self.image_pub = rospy.Publisher("/camera/aruco/image_raw", Image, queue_size=10)
-        rospy.loginfo("Publisher created for /camera/aruco/image_raw")
-
-        # CvBridge
         self.bridge = CvBridge()
-
-        # TF2 Broadcaster
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
 
-        # Camera parameters
-        self.camera_matrix = np.array([[612.1316528320312, 0, 314.5328369140625], 
-                                        [0, 612.2755737304688, 245.1070098876953], 
-                                        [0, 0, 1]], dtype=np.float32)
-        self.dist_coeffs = np.array([0, 0, 0, 0, 0], dtype=np.float32)
+        # Initialize last received time for heartbeat check
+        self.last_received_time = rospy.Time.now()
 
-        # ArUco marker parameters
+        # Set a timer for heartbeat check (every 1 second)
+        rospy.Timer(rospy.Duration(1), self.heartbeat_callback)
+
+        # Load Parameters
+        self.marker_mapping = load_json(self.config_file, {})
+        camera_params = load_json(self.camera_params_file, {"camera_matrix": [], "dist_coeffs": []})
+
+        # Camera Parameters Validation
+        self.camera_matrix = np.array(camera_params.get("camera_matrix", []), dtype=np.float32)
+        self.dist_coeffs = np.array(camera_params.get("dist_coeffs", []), dtype=np.float32)
+
+        if self.camera_matrix.size == 0 or self.dist_coeffs.size == 0:
+            rospy.logwarn("Camera parameters not properly loaded! Using default parameters.")
+
+        # ArUco Parameters
         self.dictionary_type = cv2.aruco.DICT_6X6_250
-        self.marker_size = 0.05  # Marker size in meters
-
-        self.last_image_time = time.time()
+        self.marker_size = 0.05  # Meters
 
     def image_callback(self, msg):
         try:
-            self.last_image_time = time.time()
+            # Update the last received time whenever a new image is received
+            self.last_received_time = rospy.Time.now()
 
-            # Convert ROS Image message to OpenCV format
+            # Convert ROS Image to OpenCV
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-
-            # Convert to grayscale
             gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
 
             # Detect ArUco markers
-            corners, ids = detect_aruco_markers_from_camera(gray, self.dictionary_type)
+            dictionary = cv2.aruco.getPredefinedDictionary(self.dictionary_type)
+            parameters = cv2.aruco.DetectorParameters_create()
+            corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary, parameters=parameters)
 
-            if ids is not None and len(corners) > 0:
-                rvecs, tvecs = estimate_pose_single_markers(corners, self.marker_size, self.camera_matrix, self.dist_coeffs)
+            if ids is not None:
+                rospy.loginfo("Detected ArUco markers: {}".format(ids.flatten().tolist()))
 
-                # Draw markers
-                for i, corner in enumerate(corners):
-                    top_left = corner[0][0]
-                    position = (int(top_left[0]), int(top_left[1]) - 10)
-                    marker_id = str(ids[i][0])
-                    cv2.putText(cv_image, "ID: {}".format(marker_id), position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                    self.publish_marker_tf(ids[i][0], rvecs[i], tvecs[i])
+                rvecs, tvecs = self.estimate_pose(corners)
+
+                for i, marker_id in enumerate(ids.flatten()):
+                    reverse = self.marker_mapping.get("marker_{}".format(marker_id), {}).get("reverse", False)
+                    self.publish_marker_tf(marker_id, rvecs[i], tvecs[i], reverse)
+
+                    # Draw marker ID on the image
+                    top_left = corners[i][0][0]
+                    cv2.putText(cv_image, "ID: {}".format(marker_id), (int(top_left[0]), int(top_left[1]) - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+            else:
+                rospy.logwarn("No ArUco markers detected.")
 
             # Publish annotated image
-            annotated_image = self.bridge.cv2_to_imgmsg(cv_image, encoding="bgr8")
-            self.image_pub.publish(annotated_image)
+            self.image_pub.publish(self.bridge.cv2_to_imgmsg(cv_image, encoding="bgr8"))
 
         except Exception as e:
             rospy.logerr("Error in image callback: {}".format(e))
 
-    def publish_marker_tf(self, marker_id, rvec, tvec):
-        # Convert rotation vector to rotation matrix
+    def heartbeat_callback(self, event):
+        """Heartbeat callback to check if camera input is being received."""
+        current_time = rospy.Time.now()
+        time_diff = (current_time - self.last_received_time).to_sec()
+
+        # If no image received for more than 5 seconds, log a warning
+        if time_diff > 5:
+            rospy.logwarn("No camera input received for more than 5 seconds.")
+
+    def estimate_pose(self, corners):
+        """Estimates pose of detected ArUco markers."""
+        marker_points = np.array([[-self.marker_size / 2, self.marker_size / 2, 0],
+                                  [self.marker_size / 2, self.marker_size / 2, 0],
+                                  [self.marker_size / 2, -self.marker_size / 2, 0],
+                                  [-self.marker_size / 2, -self.marker_size /2, 0]], dtype=np.float32)
+
+        rvecs, tvecs = [], []
+        for corner in corners:
+            try:
+                corner = np.array(corner, dtype=np.float32).reshape(-1, 1, 2)
+                _, rvec, tvec = cv2.solvePnP(marker_points, corner, self.camera_matrix, self.dist_coeffs)
+                rvecs.append(rvec)
+                tvecs.append(tvec)
+            except cv2.error as e:
+                rospy.logerr("Error in solvePnP: {}".format(e))
+                continue  # Skip the marker if pose estimation fails
+
+        return rvecs, tvecs
+
+    def publish_marker_tf(self, marker_id, rvec, tvec, reverse=False):
+        """Publishes transform, with an optional reversal."""
+        object_name = self.marker_mapping.get("marker_{}".format(marker_id), {}).get("name", "marker_{}".format(marker_id))
+
+        # Convert rotation vector to quaternion
         rotation_matrix, _ = cv2.Rodrigues(rvec)
         quaternion = quaternion_from_matrix(
             np.vstack([np.column_stack([rotation_matrix, [0, 0, 0]]), [0, 0, 0, 1]])
         )
 
+        # Create TransformStamped
         t = TransformStamped()
         t.header.stamp = rospy.Time.now()
 
-        if marker_id == 49:
-            # Reverse the TF: Swap the frames
-            t.header.frame_id = "marker_{}".format(marker_id)
-            t.child_frame_id = "camera_frame"
-
-            # Reverse the transformation: Invert the translation and rotation
+        if reverse:
+            # Reverse transformation: Swap frame names & invert translation
+            t.header.frame_id, t.child_frame_id = object_name, "camera_frame"
             inverse_rotation_matrix = np.linalg.inv(rotation_matrix)
             inverse_translation = -np.dot(inverse_rotation_matrix, np.array([tvec[0][0], tvec[1][0], tvec[2][0]]))
 
-            # Convert inverse rotation matrix back to quaternion
             quaternion = quaternion_from_matrix(
                 np.vstack([np.column_stack([inverse_rotation_matrix, [0, 0, 0]]), [0, 0, 0, 1]])
             )
 
-            t.transform.translation.x = inverse_translation[0]
-            t.transform.translation.y = inverse_translation[1]
-            t.transform.translation.z = inverse_translation[2]
+            t.transform.translation.x, t.transform.translation.y, t.transform.translation.z = inverse_translation
         else:
-            # Normal TF: camera_frame -> marker_id
-            t.header.frame_id = "camera_frame"
-            t.child_frame_id = "marker_{}".format(marker_id)
+            # Normal TF: camera_frame -> marker
+            t.header.frame_id, t.child_frame_id = "camera_frame", object_name
+            t.transform.translation.x, t.transform.translation.y, t.transform.translation.z = tvec[0][0], tvec[1][0], tvec[2][0]
 
-            t.transform.translation.x = tvec[0][0]
-            t.transform.translation.y = tvec[1][0]
-            t.transform.translation.z = tvec[2][0]
-
-        t.transform.rotation.x = quaternion[0]
-        t.transform.rotation.y = quaternion[1]
-        t.transform.rotation.z = quaternion[2]
-        t.transform.rotation.w = quaternion[3]
+        t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w = quaternion
 
         # Publish the transform
         self.tf_broadcaster.sendTransform(t)
 
-
 if __name__ == "__main__":
-    print("Running on Python {}.{}".format(sys.version_info[0], sys.version_info[1]))
+    rospy.init_node('aruco_detect', anonymous=True)
+
+    # Get the package path dynamically
+    rospack = rospkg.RosPack()
+    package_path = rospack.get_path('aruco_pose')  # Change 'aruco_pose' to your actual package name
+
+    # Construct the full paths
+    config_file = os.path.join(package_path, "config", "aruco_mapping.json")
+    camera_params_file = os.path.join(package_path, "config", "camera_params.json")
+
+    # Load JSON files
+    marker_mapping = load_json(config_file)
+    camera_params = load_json(camera_params_file)
+
+    rospy.loginfo("Loaded config file: {}".format(config_file))
+    rospy.loginfo("Loaded camera parameters file: {}".format(camera_params_file))
+
+    # Start processing
     aruco_subscriber = ArucoSubscriber()
+
     rospy.spin()

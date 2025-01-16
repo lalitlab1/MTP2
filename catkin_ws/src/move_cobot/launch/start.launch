@@ -1,5 +1,0 @@
-<launch>
-    <!-- Node to execute the planning_scene.py script -->
-    <node name="planning_scene" pkg="move_cobot" type="planning_scene.py" output="screen">
-    </node>
-</launch>

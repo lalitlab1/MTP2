@@ -1,63 +1,62 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import rospy
 import tf2_ros
+import json
+import os
 import geometry_msgs.msg
 from tf.transformations import quaternion_from_euler
-import time
-import math  # Import math module for radians conversion
+import math
 
-def publish_multiple_tfs():
-    rospy.init_node('multiple_tfs_publisher', anonymous=True)
-    rospy.loginfo("Starting TF publisher for multiple transforms")
+CONFIG_FILES = [
+    os.path.expanduser("~/catkin_ws/src/arm_control/config/tf_config_static.json"),
+    os.path.expanduser("~/catkin_ws/src/arm_control/config/tf_config_dynamic.json"),
+]  # Add more config file paths as needed
 
-    # Create the TransformBroadcaster
+def load_tf_configs():
+    """Loads all TF configuration files (JSON format)."""
+    transforms = []
+    for config_file in CONFIG_FILES:
+        try:
+            if os.path.exists(config_file):
+                with open(config_file, "r") as file:
+                    data = json.load(file)
+                transforms.extend(data.get("transforms", []))
+            else:
+                rospy.logwarn("Config file not found: {}".format(config_file))
+        except Exception as e:
+            rospy.logerr("Failed to load TF config {}: {}".format(config_file, e))
+    return transforms
+
+def publish_dynamic_tfs():
+    rospy.init_node("dynamic_tf_publisher", anonymous=True)
+    rospy.loginfo("Starting dynamic TF publisher with multiple config files")
+
     tf_broadcaster = tf2_ros.TransformBroadcaster()
+    rate = rospy.Rate(10)  # 10 Hz
+    last_modified_times = {file: None for file in CONFIG_FILES}
 
-    # Define a list of transforms to be published
-    transforms = [
-        {
-            "parent_frame": "base", 
-            "child_frame": "marker_49", 
-            "translation": (-0.3338, 0.239, 0.0), 
-            "rotation": (0, 0.0, 90)  # roll, pitch, yaw (in degrees)
-        },
-        {
-            "parent_frame": "world", 
-            "child_frame": "base", 
-            "translation": (0, 0.0, 0.0), 
-            "rotation": (0.0, 0.0, 0.0)  # roll, pitch, yaw (in degrees)
-        },
-        # Example of additional transform (commented-out in the original code)
-        # {
-        #     "parent_frame": "world", 
-        #     "child_frame": "target_frame_original", 
-        #     "translation": (-0.490, 0.011, 0.116), 
-        #     "rotation": (-91.751, 0.622, -0.319)  # roll, pitch, yaw (in degrees)
-        # {
-        #     "translation": [
-        #         0.02040157237037521, 
-        #         -0.20370858371346184, 
-        #         0.07590973974634599
-        #     ], 
-        #     "child_frame": "target_frame", 
-        #     "rotation": [
-        #         -89.73189651958377, 
-        #         -3.5555103202369325, 
-        #         -2.249544592576453
-        #     ], 
-        #     "parent_frame": "marker_51"
-        # },
-    ]
-    
-    # Broadcast the transforms in a loop
-    rate = rospy.Rate(10)  # 10 Hz publishing rate
     while not rospy.is_shutdown():
-        for transform in transforms:
-            # Create the TransformStamped message
-            t = geometry_msgs.msg.TransformStamped()
+        try:
+            updated = False
+            for config_file in CONFIG_FILES:
+                if os.path.exists(config_file):
+                    new_modified_time = os.path.getmtime(config_file)
+                    if last_modified_times[config_file] is None or new_modified_time > last_modified_times[config_file]:
+                        last_modified_times[config_file] = new_modified_time
+                        updated = True
+            if updated:
+                rospy.loginfo("TF configs updated, reloading...")
+                transforms = load_tf_configs()
+            else:
+                transforms = load_tf_configs()
+        except Exception as e:
+            rospy.logwarn("Error checking config files: {}".format(e))
+            transforms = []
 
-            # Set the timestamp for the transform
+        for transform in transforms:
+            t = geometry_msgs.msg.TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = transform["parent_frame"]
             t.child_frame_id = transform["child_frame"]
@@ -65,27 +64,19 @@ def publish_multiple_tfs():
             # Set translation
             t.transform.translation.x, t.transform.translation.y, t.transform.translation.z = transform["translation"]
 
-            # Convert Euler angles from degrees to radians, then to quaternion for rotation
-            roll, pitch, yaw = transform["rotation"]
-            roll_rad = math.radians(roll)  # Convert roll from degrees to radians
-            pitch_rad = math.radians(pitch)  # Convert pitch from degrees to radians
-            yaw_rad = math.radians(yaw)  # Convert yaw from degrees to radians
-
-            # Convert Euler angles (in radians) to quaternion
-            quaternion = quaternion_from_euler(roll_rad, pitch_rad, yaw_rad)
-            t.transform.rotation.x = quaternion[0]
-            t.transform.rotation.y = quaternion[1]
-            t.transform.rotation.z = quaternion[2]
-            t.transform.rotation.w = quaternion[3]
+            # Convert Euler angles (degrees) to quaternion
+            roll, pitch, yaw = map(math.radians, transform["rotation"])
+            quaternion = quaternion_from_euler(roll, pitch, yaw)
+            t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w = quaternion
 
             # Broadcast the transform
             tf_broadcaster.sendTransform(t)
-            rospy.loginfo("Published transform from {} to {}".format(t.header.frame_id, t.child_frame_id))
+            rospy.loginfo("Published transform: {} → {}".format(t.header.frame_id, t.child_frame_id))
 
         rate.sleep()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
-        publish_multiple_tfs()
+        publish_dynamic_tfs()
     except rospy.ROSInterruptException:
         pass
