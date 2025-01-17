@@ -1,0 +1,18 @@
+{
+    "transforms": [
+        {
+            "parent_frame": "target_frame",
+            "child_frame": "approach_frame",
+            "translation": [0.0, 0, -0.4],
+            "rotation": [0, 0.0, 0],
+            "offset": "local"  
+        },
+        {
+            "parent_frame": "target_frame",
+            "child_frame": "lift_frame",
+            "translation": [0.0, 0, 0.1],
+            "rotation": [0, 0.0, 0],
+            "offset": "global"  
+        }
+    ]
+}

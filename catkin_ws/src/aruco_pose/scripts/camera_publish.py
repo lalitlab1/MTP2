@@ -25,6 +25,7 @@ class CameraPublisher:
         self.pipeline = None
         self.config = None
         self.last_heartbeat = time.time()
+        self.last_publish_success = False  # Track last state to reduce logging
 
         if self.use_realsense:
             self.initialize_realsense()
@@ -46,6 +47,8 @@ class CameraPublisher:
             self.pipeline = None
 
     def publish_image(self):
+        image_success = False  # Track current image capture success
+
         if self.use_realsense:
             if not self.pipeline:
                 rospy.logwarn("RealSense pipeline is not active. Attempting to reconnect...")
@@ -60,6 +63,7 @@ class CameraPublisher:
                     return
                 
                 color_image = np.asanyarray(color_frame.get_data())
+                image_success = True
             except Exception as e:
                 rospy.logwarn("Error capturing RealSense image: {}. Trying to reconnect...".format(e))
                 self.initialize_realsense()
@@ -70,10 +74,15 @@ class CameraPublisher:
             if not ret:
                 rospy.logwarn("Could not access webcam.")
                 return
+            image_success = True
+
+        if image_success and not self.last_publish_success:
+            rospy.loginfo("Image stream resumed.")
+
+        self.last_publish_success = image_success
 
         ros_image = self.bridge.cv2_to_imgmsg(color_image, encoding='bgr8')
         self.publisher.publish(ros_image)
-        rospy.loginfo('Published an image')
 
         # Publish heartbeat every 5 seconds
         if time.time() - self.last_heartbeat > 5:

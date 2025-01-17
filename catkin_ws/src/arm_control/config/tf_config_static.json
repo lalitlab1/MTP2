@@ -1,10 +1,16 @@
 {
     "transforms": [
         {
+            "parent_frame": "world",
+            "child_frame": "base",
+            "translation": [0, 0.0, 0.0],
+            "rotation": [0, 0.0, 0]
+        },
+        {
             "parent_frame": "base",
             "child_frame": "marker_cobot_base",
             "translation": [-0.3338, 0.239, 0.0],
-            "rotation": [0, 0.0, 90]  
+            "rotation": [0, 0.0, 90]
         }
     ]
 }
