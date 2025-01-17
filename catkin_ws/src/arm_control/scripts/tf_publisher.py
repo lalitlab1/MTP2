@@ -124,7 +124,9 @@ if __name__ == "__main__":
         config_files = [
             os.path.expanduser("~/catkin_ws/src/arm_control/config/tf_config_static.json"),
             os.path.expanduser("~/catkin_ws/src/arm_control/config/tf_config_dynamic.json"),
-            os.path.expanduser("~/catkin_ws/src/arm_control/config/place_pose.json"),
+            os.path.expanduser("~/catkin_ws/src/arm_control/config/pick_config.json"),
+            os.path.expanduser("~/catkin_ws/src/arm_control/config/place_config.json"),
+
         ]
         publish_dynamic_tfs(config_files)
     except rospy.ROSInterruptException:
