@@ -126,6 +126,10 @@ if __name__ == "__main__":
             os.path.expanduser("~/catkin_ws/src/arm_control/config/tf_config_dynamic.json"),
             os.path.expanduser("~/catkin_ws/src/arm_control/config/pick_config.json"),
             os.path.expanduser("~/catkin_ws/src/arm_control/config/place_config.json"),
+            os.path.expanduser("~/catkin_ws/src/arm_control/config/calib.json"),
+
+
+            
 
         ]
         publish_dynamic_tfs(config_files)

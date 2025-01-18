@@ -1,16 +1,16 @@
 {
     "transforms": [
         {
-            "parent_frame": "target_pick",
-            "child_frame": "approach_frame",
+            "parent_frame": "target_place",
+            "child_frame": "approach_place",
             "translation": [0.0, 0, -0.4],
             "rotation": [0, 0.0, 0],
             "offset": "local"  
         },
         {
-            "parent_frame": "target_pick",
-            "child_frame": "lift_frame",
-            "translation": [0.0, 0, 0.1],
+            "parent_frame": "target_place",
+            "child_frame": "place_ground",
+            "translation": [0.0, 0, -0.1],
             "rotation": [0, 0.0, 90],
             "offset": "global"  
         }

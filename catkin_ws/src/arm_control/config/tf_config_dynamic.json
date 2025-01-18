@@ -13,10 +13,10 @@
             "rotation": [0, 0.0, 0]
         },
         {
-            "parent_frame": "marker_pallet_base",
-            "child_frame": "target_frame",
-            "translation": [0.5, -0.5, 0.5],
-            "rotation": [0, -90, 45]
+            "parent_frame": "camera_frame",
+            "child_frame": "marker_station",
+            "translation": [-0.5, -0.5, 0],
+            "rotation": [0, 0.0, -90]
         }
     ]
 }
