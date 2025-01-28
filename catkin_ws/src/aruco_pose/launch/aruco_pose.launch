@@ -3,7 +3,7 @@
     <arg name="start_rviz" default="true" />
     
     <!-- Argument to control RealSense usage -->
-    <arg name="realsense" default="false" />
+    <arg name="realsense" default="true" />
 
     <!-- Node to run the camera_publish.py script -->
     <node 

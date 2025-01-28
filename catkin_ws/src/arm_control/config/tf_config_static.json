@@ -9,7 +9,7 @@
         {
             "parent_frame": "base",
             "child_frame": "marker_cobot_base",
-            "translation": [-0.3338, 0.239, 0.0],
+            "translation": [-0.449, -0.174, 0.0],
             "rotation": [0, 0.0, 90]
         }
     ]

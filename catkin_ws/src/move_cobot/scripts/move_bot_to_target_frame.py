@@ -55,7 +55,9 @@ def listen_to_frames():
     tf_buffer = tf2_ros.Buffer()
     tf_listener = tf2_ros.TransformListener(tf_buffer)
 
-    frame_list = ["approach", "grasp", "lift"]  # Example frames to listen to
+    # frame_list = ["approach", "target_pick", "lift"]  # Example frames to listen to,
+    frame_list = ["approach", "lift", "target_place",]  # Example frames to listen to
+
     rate = rospy.Rate(1)  # 1 Hz loop rate
 
     while not rospy.is_shutdown():

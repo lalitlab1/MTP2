@@ -89,15 +89,27 @@ def publish_dynamic_tfs(config_files):
             rotation = transform["rotation"]
             offset_type = transform.get("offset", "local")
 
+            # Check rotation format and convert if needed
+            if len(rotation) == 4:
+                # If rotation is quaternion (4 elements), use it directly
+                child_quaternion = rotation
+                rospy.loginfo("Using provided quaternion for rotation: {}".format(rotation))
+            elif len(rotation) == 3:
+                # If rotation is Euler angles (3 elements), convert to quaternion
+                child_quaternion = quaternion_from_euler(*np.radians(rotation))  # Convert Euler to quaternion
+                rospy.loginfo("Converted Euler angles to quaternion: {}".format(child_quaternion))
+            else:
+                rospy.logwarn("Invalid rotation format for transform {} → {}".format(parent_frame, child_frame))
+                continue  # Skip this transform if rotation format is invalid
+
             if offset_type == "global":
                 # Query the parent frame's transform (rotation + translation) in the world frame
                 parent_translation, parent_quaternion = extract_transform_from_tf(tf_buffer, parent_frame)
                 if parent_quaternion is None or parent_translation is None:
                     continue  # Skip if TF lookup failed
 
-
-                # Compute child's correct initialization rotation
-                child_quaternion = apply_rotation_to_child(parent_quaternion, rotation)
+                # Apply parent's rotation to child's rotation (global transform)
+                final_child_quaternion = apply_rotation_to_child(parent_quaternion, rotation)
 
                 # Compute final child translation (apply parent's translation to child's offset)
                 final_translation = [
@@ -107,17 +119,16 @@ def publish_dynamic_tfs(config_files):
                 ]
 
                 # Publish the final child transform
-                publish_tf(tf_broadcaster, GLOBAL_FRAME, child_frame, final_translation, child_quaternion)
+                publish_tf(tf_broadcaster, GLOBAL_FRAME, child_frame, final_translation, final_child_quaternion)
 
                 rospy.loginfo("Published global transform {} → {}, child inherits parent rotation and translation.".format(
                     GLOBAL_FRAME, child_frame))
             else:
-                # Local transformation
-                publish_tf(tf_broadcaster, parent_frame, child_frame, translation, quaternion_from_euler(*np.radians(rotation)))
+                # Local transformation (apply Euler to quaternion)
+                publish_tf(tf_broadcaster, parent_frame, child_frame, translation, child_quaternion)
                 rospy.loginfo("Published local transform {} → {}".format(parent_frame, child_frame))
 
         rate.sleep()
-
 
 if __name__ == "__main__":
     try:

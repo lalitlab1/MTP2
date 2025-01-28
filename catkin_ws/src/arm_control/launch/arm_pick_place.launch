@@ -10,9 +10,9 @@
     <!-- </node>  -->
 
     <!-- Include the aruco_pose.launch file and set start_rviz to false -->
-    <!-- <include file="$(find aruco_pose)/launch/aruco_pose.launch">
-        <arg name="start_rviz" value="false" />
-        <arg name="realsense" value="false" />
-    </include> -->
     
+    <include file="$(find aruco_pose)/launch/aruco_pose.launch">
+        <arg name="start_rviz" value="false" />
+        <arg name="realsense" value="true" />
+    </include> 
 </launch>

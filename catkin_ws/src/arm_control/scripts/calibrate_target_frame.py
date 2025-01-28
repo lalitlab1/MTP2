@@ -107,13 +107,13 @@ class CalibrationGUI:
 
         # Parent Frame Dropdown
         tk.Label(frame, text="Parent Frame:").grid(row=0, column=0, sticky="w")
-        self.parent_frame = ttk.Combobox(frame, values=["marker_pallet_base", "world", "base_link"], width=20)
+        self.parent_frame = ttk.Combobox(frame, values=["marker_pallet", "world", "base_link"], width=20)
         self.parent_frame.grid(row=0, column=1)
-        self.parent_frame.set("marker_pallet_base")  # Default value
+        self.parent_frame.set("marker_pallet")  # Default value
 
         # Child Frame Dropdown
         tk.Label(frame, text="Child Frame:").grid(row=1, column=0, sticky="w")
-        self.child_frame = ttk.Combobox(frame, values=["target_pick", "target_place"], width=20)
+        self.child_frame = ttk.Combobox(frame, values=["target_pick", "target_place","marker_pallet"], width=20)
         self.child_frame.grid(row=1, column=1)
         self.child_frame.set("target_pick")  # Default value
 

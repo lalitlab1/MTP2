@@ -2,17 +2,17 @@
     "transforms": [
         {
             "parent_frame": "target_place",
-            "child_frame": "approach_place",
-            "translation": [0.0, 0, -0.4],
+            "child_frame": "lift",
+            "translation": [0.0, 0, 0.01],
             "rotation": [0, 0.0, 0],
-            "offset": "local"  
+            "offset": "global"  
         },
         {
-            "parent_frame": "target_place",
-            "child_frame": "place_ground",
-            "translation": [0.0, 0, -0.1],
-            "rotation": [0, 0.0, 90],
-            "offset": "global"  
+            "parent_frame": "lift",
+            "child_frame": "approach",
+            "translation": [0.0, 0, -0.2],
+            "rotation": [0, 0.0, 0],
+            "offset": "local"  
         }
     ]
 }

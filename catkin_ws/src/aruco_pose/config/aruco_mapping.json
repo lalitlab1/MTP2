@@ -1,5 +1,5 @@
 {
-    "marker_51": { "name": "object_A" },
-    "marker_49": { "name": "marker_cobot_base", "reverse": true },
-    "marker_40": { "name": "object_C" }
+    "marker_50": { "name": "marker_station" },
+    "marker_51": { "name": "marker_pallet" },
+    "marker_49": { "name": "marker_cobot_base", "reverse": true }
 }
