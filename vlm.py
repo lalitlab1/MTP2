@@ -77,7 +77,8 @@ def main():
     model, tokenizer = download_and_save_model(model_name, save_path)
     
     # Path to the folder containing images
-    folder_path = r"/home/dell/MTP@/MTP2/catkin_ws/src/aruco_pose/saved_images"  # Replace with your folder path
+    # folder_path = r"/home/dell/MTP@/MTP2/catkin_ws/src/aruco_pose/saved_images"  # Replace with your folder path
+    folder_path = "img"
     
     # Describe the latest images in the folder (change `n_latest` to control how many images to process)
     describe_latest_images_in_folder(folder_path, model, n_latest=5)
