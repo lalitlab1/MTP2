@@ -129,7 +129,7 @@ def main():
     image = load_image(image_path)
 
     # Use the model for queries
-    query = "Describe the image"
+    query = "What is written on the wheel?"
     use_model_for_queries(model, image, query)
 
 
